@@ -177,8 +177,10 @@ RandomForest <- function(target_variable){
   }
   else{
     target_variable <- ncol(training_set)-1
-    
   }
+  
+  features <- MRMR(target_variable)
+  
   spam_idx <- sample(1:nrow(training_set))
   half_split <- floor(nrow(training_set)/2)
   
