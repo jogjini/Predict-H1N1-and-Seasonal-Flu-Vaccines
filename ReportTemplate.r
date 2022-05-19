@@ -112,81 +112,103 @@ for (col in all_features){
 
 #mrmr filter
 
-training_set <- read.csv("normalized_data.csv")
+MRMR <- function(target_variable) {
 
-n <- ncol(training_set)
-n_var <- n-3
-input_variables <- training_set[,1:n_var]
-
-output_variable <- training_set[,"h1n1_vaccine"]
-
-correlation<-abs(cor(input_variables,output_variable))
-selected<-c()
-candidates<-1:n_var
-
-for (j in 1:n_var) {
-  redundancy_score<-numeric(length(candidates))
+  training_set <- read.csv("normalized_data.csv")
   
-  if (length(selected)>0) {
-    # Compute the correlation between the selected variables and the candidates on the training set
-    cor_selected_candidates<-cor(training_set[,selected,drop=F],training_set[,candidates,drop=F])
-    # Compute the mean correlation for each candidate variable, across the selected variables
-    redundancy_score<-apply(cor_selected_candidates,2,mean)
+  n <- ncol(training_set)
+  if (target_variable == "h1n1_vaccine"){
+    n_var <- n-3
+  }
+  else{
+    n_var <- n-2
+  }
+    
+  input_variables <- training_set[,1:n_var]
+  
+  output_variable <- training_set[,target_variable]
+  
+  correlation<-abs(cor(input_variables,output_variable))
+  selected<-c()
+  candidates<-1:n_var
+  
+  for (j in 1:n_var) {
+    redundancy_score<-numeric(length(candidates))
+    
+    if (length(selected)>0) {
+      # Compute the correlation between the selected variables and the candidates on the training set
+      cor_selected_candidates<-cor(training_set[,selected,drop=F],training_set[,candidates,drop=F])
+      # Compute the mean correlation for each candidate variable, across the selected variables
+      redundancy_score<-apply(cor_selected_candidates,2,mean)
+    }
+    
+    # mRMR: minimum Redundancy Maximum Relevancy
+    mRMR_score<-correlation[candidates]-redundancy_score
+    
+    
+    # Select the candidate variable that maximises the mRMR score
+    selected_current<-candidates[which.max(mRMR_score)]
+    selected<-c(selected,selected_current)
+    # Remove the selected variables from the candidates
+    candidates<-setdiff(candidates,selected_current)
+    
+    
   }
   
-  # mRMR: minimum Redundancy Maximum Relevancy
-  mRMR_score<-correlation[candidates]-redundancy_score
-  
-  
-  # Select the candidate variable that maximises the mRMR score
-  selected_current<-candidates[which.max(mRMR_score)]
-  selected<-c(selected,selected_current)
-  # Remove the selected variables from the candidates
-  candidates<-setdiff(candidates,selected_current)
-  
-  
+  return(features <- all_features[selected])
+
 }
 
 
-
-features <- all_features[selected]
+features <- MRMR("seasonal_vaccine")
 
 features
 
-training_set <- read.csv("normalized_data.csv")
 
-
-n_trees <- c(200,300,400,500,600,700,800)
-
-
-results <- matrix(,nrow=length(features)-5, ncol=length(n_trees))
-
-
-
-for (j in 5:length(features)){
-
+RandomForest <- function(target_variable){
+  training_set <- read.csv("normalized_data.csv")
   
-  accuracy_vec <- array(0,length(n_trees))
+  n_trees <- c(200,300,400,500,600,700,800)
   
+  results <- matrix(,nrow=length(features)-5, ncol=length(n_trees))
+  
+  if (target_variable == "h1n1_vaccine"){
+    target_variable <- ncol(training_set)-2
+  }
+  else{
+    target_variable <- ncol(training_set)-1
+    
+  }
   spam_idx <- sample(1:nrow(training_set))
   half_split <- floor(nrow(training_set)/2)
-  target_variable <- ncol(traini)-1
   
-  for (i in 1:length(n_trees)){ 
-    train_data <- training_set[spam_idx[1:half_split],]
+  
+  for (j in 5:length(features)){
+  
     
-    test_data <- training_set[spam_idx[(half_split+1):nrow(training_set)],]
+    accuracy_vec <- array(0,length(n_trees))
     
-    model <- randomForest(x=train_data[,features[1:j]],
-                          y=as.factor(train_data[,c(target_variable)]),
-                          xtest=test_data[,features[1:j]],
-                          ytest=as.factor(test_data[,c(target_variable)]),
-                          ntree=n_trees[i])
-    
-    accuracy_vec[i] = (model$test$confusion[1,1]+model$test$confusion[2,2])/sum(model$test$confusion)
+    for (i in 1:length(n_trees)){ 
+      train_data <- training_set[spam_idx[1:half_split],]
+      
+      test_data <- training_set[spam_idx[(half_split+1):nrow(training_set)],]
+      
+      model <- randomForest(x=train_data[,features[1:j]],
+                            y=as.factor(train_data[,c(target_variable)]),
+                            xtest=test_data[,features[1:j]],
+                            ytest=as.factor(test_data[,c(target_variable)]),
+                            ntree=n_trees[i])
+      
+      accuracy_vec[i] = (model$test$confusion[1,1]+model$test$confusion[2,2])/sum(model$test$confusion)
+    }
+    results[j-4,] <- accuracy_vec
   }
-  results[j-4,] <- accuracy_vec
+
+  return(results)
 }
+
+
+
 
 install.packages("xgboost")
 
@@ -252,15 +274,6 @@ plot(pred2)
 
 
 "
-
-
-
-
-
-
-
-
-
 
 target_variable <- ncol(traini)
 results
