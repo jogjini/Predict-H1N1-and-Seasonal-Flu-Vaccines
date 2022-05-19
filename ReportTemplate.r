@@ -117,13 +117,10 @@ MRMR <- function(target_variable) {
   training_set <- read.csv("normalized_data.csv")
   
   n <- ncol(training_set)
-  if (target_variable == "h1n1_vaccine"){
-    n_var <- n-3
-  }
-  else{
-    n_var <- n-2
-  }
-    
+  
+  n_var <- n-3
+  
+  
   input_variables <- training_set[,1:n_var]
   
   output_variable <- training_set[,target_variable]
@@ -159,24 +156,23 @@ MRMR <- function(target_variable) {
 
 }
 
+MRMR("seasonal_vaccine")
 
-features <- MRMR("seasonal_vaccine")
 
-features
+
 
 
 RandomForest <- function(target_variable){
   training_set <- read.csv("normalized_data.csv")
   
-  n_trees <- c(200,300,400,500,600,700,800)
+  n_trees <- c(100, 200, 300, 400, 500)
   
-  results <- matrix(,nrow=length(features)-5, ncol=length(n_trees))
-  
+
   if (target_variable == "h1n1_vaccine"){
-    target_variable <- ncol(training_set)-2
+    target_variable <- ncol(training_set)-1
   }
   else{
-    target_variable <- ncol(training_set)-1
+    target_variable <- ncol(training_set)
   }
   
   features <- MRMR(target_variable)
@@ -185,12 +181,22 @@ RandomForest <- function(target_variable){
   half_split <- floor(nrow(training_set)/2)
   
   
-  for (j in 5:length(features)){
+  sample <- 5:length(features)
+  print(sample)
   
+  results <- matrix(,nrow=length(features)-5, ncol=length(n_trees))
+  
+  
+  for (j in sample){
+    print(j)
+    
     
     accuracy_vec <- array(0,length(n_trees))
     
     for (i in 1:length(n_trees)){ 
+
+      
+      
       train_data <- training_set[spam_idx[1:half_split],]
       
       test_data <- training_set[spam_idx[(half_split+1):nrow(training_set)],]
@@ -203,21 +209,89 @@ RandomForest <- function(target_variable){
       
       accuracy_vec[i] = (model$test$confusion[1,1]+model$test$confusion[2,2])/sum(model$test$confusion)
     }
-    results[j-4,] <- accuracy_vec
+    results[j-5,] <- accuracy_vec
   }
-
+  
   return(results)
 }
 
 
+res <- RandomForest("h1n1_vaccine")
+
+res2 <- RandomForest("seasonal_vaccine")
 
 
+write.table(res2, file="seasonal_randomforest.txt", row.names=FALSE, col.names=FALSE)
+which(res == max(res), arr.ind = TRUE)
+which(res2 == max(res2), arr.ind = TRUE)
+
+
+
+
+features <- MRMR("seasonal_vaccine")
+
+
+training_set <- read.csv("normalized_data.csv")
+
+traini <-training_set[,features[1:30]]
+
+traini[,"seasonal_vaccine"] <- training_set[,"seasonal_vaccine"]
+
+traini
+
+pred_set <- read.csv("normalized_testset.csv")
+pred_set <- pred_set[,features[1:30]]
+
+traini
+pred_set
+
+traini$seasonal_vaccine <- as.factor(traini$seasonal_vaccine)
+
+model <- randomForest(seasonal_vaccine~., data=traini, ntree=600)
+
+model
+
+pred <- predict(model, pred_set, type="prob")
+pred
+
+
+write.csv(pred, "result.csv")
+
+
+
+
+
+
+
+"
 install.packages("xgboost")
 
 library(xgboost)
 
 
+
+features <- MRMR("h1n1_vaccine")
+
 training_set <- read.csv("normalized_data.csv")
+
+spam_idx <- sample(1:nrow(training_set))
+half_split <- floor(nrow(training_set)/2)
+
+
+target_variable <- ncol(training_set)-1
+
+
+train_data <- training_set[spam_idx[1:half_split],]
+
+test_data <- training_set[spam_idx[(half_split+1):nrow(training_set)],]
+
+model <- randomForest(x=train_data[,features[1:30]],
+                      y=as.factor(train_data[,c(target_variable)]),
+                      xtest=test_data[,features[1:30]],
+                      ytest=as.factor(test_data[,c(target_variable)]),
+                      ntree=300)
+
+model
 
 
 
@@ -275,7 +349,7 @@ plot(pred2)
 
 
 
-"
+
 
 target_variable <- ncol(traini)
 results
@@ -321,13 +395,13 @@ pred
 
 write.csv(pred, "result.csv")
 
-
+"
 
 testset <- read.csv("test_set_features.csv")
 
-h1n1_res <- read.csv("result.csv")
+h1n1_res <- read.csv("h1n1_result.csv")
 
-seas_res <- read.csv("results_seasonal.csv")
+seas_res <- read.csv("result.csv")
 
 
 submit <- data.frame(respondent_id=c(test_set[,"respondent_id"]), h1n1_vaccine=c(h1n1_res[3]),seasonal_vaccine=c(seas_res[3]))
@@ -336,10 +410,55 @@ submit
 
 
 write.csv(submit, "submission.csv", row.names=FALSE)
-"
 
 
 
+Submit <- function(){
+
+  features_seasonal <- MRMR("seasonal_vaccine")
+  features_h1n1 <- MRMR("h1n1_vaccine")
+  
+  
+  training_set <- read.csv("normalized_data.csv")
+  test_set <- read.csv("normalized_testset.csv")
+  
+  training_seasonal <-training_set[,features_seasonal[1:30]]
+  training_seasonal[,"seasonal_vaccine"] <- training_set[,"seasonal_vaccine"]
+  
+  training_h1n1 <-training_set[,features_h1n1[1:29]]
+  training_h1n1[,"h1n1_vaccine"] <- training_set[,"h1n1_vaccine"]
+  
+  
+  pred_set_seasonal <- test_set[,features_seasonal[1:30]]
+  pred_set_h1n1 <- test_set[, features_h1n1[1:29]]
+  
+  
+  training_seasonal$seasonal_vaccine <- as.factor(training_seasonal$seasonal_vaccine)
+  
+  training_h1n1$h1n1_vaccine <- as.factor(training_h1n1$h1n1_vaccine)
+  
+  model_seasonal <- randomForest(seasonal_vaccine~., data=training_seasonal, ntree=300)
+  
+  model_h1n1 <- randomForest(h1n1_vaccine~., data=training_h1n1, ntree=300)
+
+  prediction_seasonal <- predict(model_seasonal, pred_set_seasonal, type="prob")
+  
+  prediction_h1n1 <- predict(model_h1n1, pred_set_h1n1, type="prob")
+  
+  
+
+  
+  testset <- read.csv("test_set_features.csv")
+
+  submit <- data.frame(respondent_id=c(testset[,"respondent_id"]), h1n1_vaccine=c(prediction_h1n1[,2])
+                       ,seasonal_vaccine=c(prediction_seasonal[,2]))
+  
+  
+  write.csv(submit, "submission_file.csv", row.names=FALSE)
+  
+}
+
+Submit()
 
 
 
